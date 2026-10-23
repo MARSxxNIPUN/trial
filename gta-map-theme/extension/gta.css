@@ -1,0 +1,17 @@
+/*
+ * google.com/maps draws the map on a <canvas>, so its colors can't be changed
+ * feature by feature. This filter turns the default light palette into a dark,
+ * muted GTA V look: dark navy water, olive-grey land, dark green parks.
+ */
+#scene canvas,
+.widget-scene-canvas {
+  filter: invert(0.88) hue-rotate(180deg) saturate(0.55) sepia(0.18) contrast(1.15) brightness(0.95) !important;
+}
+
+/* GTA-style font in the search box (uses Pricedown if you have it installed). */
+#omnibox-container input,
+.searchboxinput {
+  font-family: "Pricedown", "Pricedown Bl", Impact, "Arial Narrow", sans-serif !important;
+  letter-spacing: 0.03em;
+}
+

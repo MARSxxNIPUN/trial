@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTA Map Theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --hud-font: "Pricedown", "Pricedown Bl", "Oswald", Impact, sans-serif;
+    --ui-font: "Oswald", "Arial Narrow", sans-serif;
+    --health: #4f9e3f;
+    --armor: #3d82c4;
+    --waypoint: #a64fd6;
+    --frame: #0b0d0c;
+  }
+  html, body { margin: 0; height: 100%; background: #1b1f1d; overflow: hidden; }
+  #map { position: absolute; inset: 0; }
+
+  /* Pause-menu style header */
+  .header {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 2px; z-index: 5; font-family: var(--ui-font);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .header span {
+    background: rgba(0,0,0,.7); color: #ccc; padding: 6px 18px; font-size: 15px;
+  }
+  .header span.active { background: #f0f0f0; color: #000; }
+
+  /* Money / wanted level, top right */
+  .stats {
+    position: absolute; top: 14px; right: 22px; z-index: 5; text-align: right;
+    font-family: var(--hud-font); color: #fff;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  }
+  .stats .money { font-size: 38px; color: #72cc72; }
+  .stats .stars { font-size: 26px; letter-spacing: 2px; color: #fff; }
+  .stats .stars .off { color: rgba(255,255,255,.25); }
+
+  /* Radar minimap, bottom left */
+  .radar-wrap {
+    position: absolute; left: 22px; bottom: 22px; z-index: 5;
+    width: 260px; padding: 4px; background: var(--frame);
+    box-shadow: 0 4px 18px rgba(0,0,0,.6);
+  }
+  #radar { width: 100%; height: 165px; }
+  .radar-wrap .player {
+    position: absolute; left: 50%; top: calc(4px + 82px);
+    width: 0; height: 0; transform: translate(-50%, -50%);
+    border-left: 8px solid transparent; border-right: 8px solid transparent;
+    border-bottom: 18px solid #fff; filter: drop-shadow(0 0 2px #000);
+    pointer-events: none;
+  }
+  .bars { display: flex; gap: 4px; margin-top: 4px; }
+  .bar { height: 7px; background: rgba(255,255,255,.12); flex: 1; }
+  .bar > i { display: block; height: 100%; }
+  .bar.health > i { background: var(--health); width: 85%; }
+  .bar.armor > i { background: var(--armor); width: 60%; }
+  .bar.ability { flex: .5; }
+  .bar.ability > i { background: #e8c94a; width: 100%; }
+
+  /* Area / street name, bottom right */
+  .area {
+    position: absolute; right: 26px; bottom: 26px; z-index: 5; text-align: right;
+    font-family: var(--hud-font); color: #fff;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  }
+  .area .street { font-size: 22px; color: #e5e5e5; }
+  .area .district { font-size: 34px; }
+
+  .hint {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5;
+    font: 13px var(--ui-font); color: #ddd; background: rgba(0,0,0,.6); padding: 4px 12px;
+  }
+
+  .no-key {
+    position: absolute; inset: 0; display: grid; place-items: center; z-index: 10;
+    background: #1b1f1d; color: #eee; font: 16px/1.5 var(--ui-font); padding: 16px; text-align: center;
+  }
+  .no-key code { background: #000; padding: 2px 6px; }
+
+  @media (max-width: 640px) {
+    .radar-wrap { width: 170px; left: 12px; bottom: 12px; }
+    #radar { height: 110px; }
+    .radar-wrap .player { top: calc(4px + 55px); }
+    .header span { padding: 5px 10px; font-size: 12px; }
+    .stats .money { font-size: 28px; }
+    .area .district { font-size: 24px; }
+    .area .street { font-size: 16px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="header"><span>Brief</span><span class="active">Map</span><span>Stats</span><span>Settings</span></div>
+
+<div class="stats">
+  <div class="money">$1,337,420</div>
+  <div class="stars" id="stars"></div>
+</div>
+
+<div class="radar-wrap">
+  <div id="radar"></div>
+  <div class="player"></div>
+  <div class="bars">
+    <div class="bar health"><i></i></div>
+    <div class="bar armor"><i></i></div>
+    <div class="bar ability"><i></i></div>
+  </div>
+</div>
+
+<div class="area">
+  <div class="street" id="street">&nbsp;</div>
+  <div class="district" id="district">San Andreas</div>
+</div>
+
+<div class="hint">Right-click to set a waypoint &nbsp;·&nbsp; Press W to raise your wanted level</div>
+
+<script>
+  // Pass your key as ?key=YOUR_API_KEY, or paste it here.
+  const API_KEY = new URLSearchParams(location.search).get("key") || "";
+  const START = { lat: 34.0522, lng: -118.2437 }; // Los Angeles = Los Santos
+
+  let wanted = 0;
+  function renderStars() {
+    document.getElementById("stars").innerHTML =
+      [...Array(5)].map((_, i) => `<span class="${i < wanted ? "" : "off"}">★</span>`).join("");
+  }
+  renderStars();
+  addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "w") { wanted = (wanted + 1) % 6; renderStars(); }
+  });
+
+  // GTA-style circular blip icon.
+  function blip(color, glyph = "") {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+      <circle cx="14" cy="14" r="11" fill="${color}" stroke="#000" stroke-width="2"/>
+      <text x="14" y="19" font-family="Arial" font-weight="bold" font-size="13" fill="#fff" text-anchor="middle">${glyph}</text>
+    </svg>`;
+    return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+             scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) };
+  }
+
+  async function initMap() {
+    const [pauseStyle, radarStyle] = await Promise.all(
+      ["pause-map-style.json", "radar-style.json"].map(f => fetch(f).then(r => r.json())));
+
+    const map = new google.maps.Map(document.getElementById("map"), {
+      center: START, zoom: 12, styles: pauseStyle,
+      disableDefaultUI: true, zoomControl: true, backgroundColor: "#2c4a63",
+    });
+    const radar = new google.maps.Map(document.getElementById("radar"), {
+      center: START, zoom: 15, styles: radarStyle,
+      disableDefaultUI: true, gestureHandling: "none", keyboardShortcuts: false,
+      clickableIcons: false, backgroundColor: "#1f364a",
+    });
+
+    // Story-mode style blips (letters, like the mission givers in GTA V).
+    const blips = [
+      { pos: { lat: 34.1341, lng: -118.3215 }, color: "#3d82c4", glyph: "M" },
+      { pos: { lat: 34.0195, lng: -118.4912 }, color: "#4f9e3f", glyph: "F" },
+      { pos: { lat: 33.9416, lng: -118.4085 }, color: "#e08a2c", glyph: "T" },
+      { pos: { lat: 34.0430, lng: -118.2673 }, color: "#e8c94a", glyph: "$" },
+    ];
+    blips.forEach(b => {
+      new google.maps.Marker({ map, position: b.pos, icon: blip(b.color, b.glyph) });
+      new google.maps.Marker({ map: radar, position: b.pos, icon: blip(b.color, b.glyph) });
+    });
+
+    // Right-click drops a purple waypoint on both maps.
+    let waypoint = [];
+    map.addListener("rightclick", e => {
+      waypoint.forEach(m => m.setMap(null));
+      waypoint = [map, radar].map(m =>
+        new google.maps.Marker({ map: m, position: e.latLng, icon: blip("#a64fd6", "") }));
+    });
+
+    // Radar follows the main map's center.
+    map.addListener("center_changed", () => radar.setCenter(map.getCenter()));
+
+    // Street and district names in the bottom-right corner (needs the Geocoding API).
+    const geocoder = new google.maps.Geocoder();
+    let timer;
+    map.addListener("idle", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        geocoder.geocode({ location: map.getCenter() }).then(({ results }) => {
+          const parts = (results[0] || {}).address_components || [];
+          const pick = type => (parts.find(c => c.types.includes(type)) || {}).long_name;
+          document.getElementById("street").textContent = pick("route") || " ";
+          document.getElementById("district").textContent =
+            pick("neighborhood") || pick("sublocality") || pick("locality") || "San Andreas";
+        }).catch(() => {});
+      }, 400);
+    });
+  }
+
+  if (!API_KEY) {
+    document.body.insertAdjacentHTML("beforeend",
+      `<div class="no-key"><div>Add a Google Maps API key to the URL:<br>
+       <code>index.html?key=YOUR_API_KEY</code></div></div>`);
+  } else {
+    window.initMap = initMap;
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&callback=initMap`;
+    s.async = true;
+    document.head.appendChild(s);
+  }
+</script>
+</body>
+</html>
