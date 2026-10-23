@@ -2,8 +2,15 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GTA V Map</title>
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Los Santos">
+<link rel="apple-touch-icon" href="gta-map-icon.png">
+<link rel="icon" href="gta-map-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
 <style>
 html, body{
@@ -22,7 +29,7 @@ inset:0;
 /* top right: money + wanted stars */
 #hud-top{
 position:absolute;
-top:16px;
+top:calc(16px + env(safe-area-inset-top, 0px));
 right:20px;
 text-align:right;
 pointer-events:none;
@@ -50,7 +57,7 @@ opacity:1;
 #hud-bottom{
 position:absolute;
 left:20px;
-bottom:24px;
+bottom:calc(24px + env(safe-area-inset-bottom, 0px));
 width:280px;
 pointer-events:none;
 }
@@ -128,7 +135,7 @@ cursor:pointer;
 
 #help{
 position:absolute;
-top:16px;
+top:calc(16px + env(safe-area-inset-top, 0px));
 left:20px;
 background:rgba(0,0,0,.7);
 padding:8px 12px;
