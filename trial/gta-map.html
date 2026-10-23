@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTA V Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+<style>
+html, body{
+margin:0;
+height:100%;
+background:#1b1d20;
+font-family:'Chakra Petch', sans-serif;
+color:#fff;
+overflow:hidden;
+}
+#map{
+position:absolute;
+inset:0;
+}
+
+/* top right: money + wanted stars */
+#hud-top{
+position:absolute;
+top:16px;
+right:20px;
+text-align:right;
+pointer-events:none;
+text-shadow:2px 2px 0 #000;
+}
+#cash{
+font-family:'Teko', sans-serif;
+font-size:44px;
+line-height:1;
+color:#72cc72;
+}
+#stars{
+font-size:30px;
+letter-spacing:4px;
+color:#fff;
+}
+#stars span{
+opacity:.25;
+}
+#stars span.on{
+opacity:1;
+}
+
+/* bottom left: minimap-style health/armor bars + street name */
+#hud-bottom{
+position:absolute;
+left:20px;
+bottom:24px;
+width:280px;
+pointer-events:none;
+}
+#street{
+font-family:'Teko', sans-serif;
+font-size:30px;
+line-height:1;
+text-shadow:2px 2px 0 #000;
+margin-bottom:6px;
+}
+#street small{
+display:block;
+font-size:20px;
+color:#c8c8c8;
+}
+.bars{
+display:flex;
+gap:4px;
+background:rgba(0,0,0,.6);
+padding:4px;
+}
+.bar{
+height:8px;
+flex:1;
+}
+.bar.health{ background:#57a85b; }
+.bar.armor{ background:#5ea6d8; }
+.bar.ability{ background:#e2c84a; flex:.5; }
+
+/* key prompt */
+#keybox{
+position:absolute;
+inset:0;
+display:none;
+align-items:center;
+justify-content:center;
+background:#1b1d20;
+z-index:10;
+}
+#keybox form{
+background:#000;
+border-left:6px solid #9b59d0;
+padding:24px;
+width:min(420px, calc(100% - 32px));
+box-sizing:border-box;
+}
+#keybox h1{
+font-family:'Teko', sans-serif;
+font-size:42px;
+margin:0 0 8px;
+}
+#keybox p{
+font-size:14px;
+color:#bbb;
+}
+#keybox input{
+width:100%;
+box-sizing:border-box;
+padding:10px;
+font:inherit;
+background:#222;
+color:#fff;
+border:1px solid #555;
+margin-bottom:12px;
+}
+#keybox button{
+font:inherit;
+font-weight:700;
+padding:10px 18px;
+background:#9b59d0;
+color:#fff;
+border:0;
+cursor:pointer;
+}
+
+#help{
+position:absolute;
+top:16px;
+left:20px;
+background:rgba(0,0,0,.7);
+padding:8px 12px;
+font-size:13px;
+pointer-events:none;
+}
+#help b{
+color:#c58cf5;
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="help"><b>Click</b> the map to set a waypoint &middot; <b>Right-click</b> to clear it</div>
+
+<div id="hud-top">
+<div id="cash">$0</div>
+<div id="stars"><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span></div>
+</div>
+
+<div id="hud-bottom">
+<div id="street">Locating&hellip;<small>&nbsp;</small></div>
+<div class="bars">
+<div class="bar health"></div>
+<div class="bar armor"></div>
+<div class="bar ability"></div>
+</div>
+</div>
+
+<div id="keybox">
+<form id="keyform">
+<h1>Los Santos Map</h1>
+<p>Paste a Google Maps JavaScript API key. It is saved in this browser only. You can also open this page as <code>gta-map.html?key=YOUR_KEY</code>.</p>
+<input id="keyinput" placeholder="AIza..." autocomplete="off">
+<button type="submit">Load map</button>
+</form>
+</div>
+
+<script>
+// Colours picked to match the GTA V pause-menu / radar map.
+var GTA_STYLE = [
+{ elementType:'geometry', stylers:[{ color:'#2b2f33' }] },
+{ elementType:'labels.text.fill', stylers:[{ color:'#e6e6e6' }] },
+{ elementType:'labels.text.stroke', stylers:[{ color:'#000000' }, { weight:3 }] },
+{ elementType:'labels.icon', stylers:[{ visibility:'off' }] },
+
+{ featureType:'administrative', elementType:'geometry.stroke', stylers:[{ color:'#4a4f55' }] },
+{ featureType:'administrative.land_parcel', stylers:[{ visibility:'off' }] },
+{ featureType:'administrative.neighborhood', elementType:'labels.text.fill', stylers:[{ color:'#bdbdbd' }] },
+
+{ featureType:'landscape.man_made', elementType:'geometry', stylers:[{ color:'#34393e' }] },
+{ featureType:'landscape.natural', elementType:'geometry', stylers:[{ color:'#30352f' }] },
+{ featureType:'landscape.natural.terrain', elementType:'geometry', stylers:[{ color:'#3b3a31' }] },
+
+{ featureType:'poi', stylers:[{ visibility:'off' }] },
+{ featureType:'poi.park', stylers:[{ visibility:'on' }] },
+{ featureType:'poi.park', elementType:'geometry', stylers:[{ color:'#3d5a35' }] },
+{ featureType:'poi.park', elementType:'labels', stylers:[{ visibility:'off' }] },
+
+{ featureType:'road', elementType:'geometry.fill', stylers:[{ color:'#8c8f93' }] },
+{ featureType:'road', elementType:'geometry.stroke', stylers:[{ visibility:'off' }] },
+{ featureType:'road', elementType:'labels.text.fill', stylers:[{ color:'#ffffff' }] },
+{ featureType:'road.local', elementType:'geometry.fill', stylers:[{ color:'#6b6f74' }] },
+{ featureType:'road.arterial', elementType:'geometry.fill', stylers:[{ color:'#a7aaae' }] },
+{ featureType:'road.highway', elementType:'geometry.fill', stylers:[{ color:'#c9cbce' }] },
+{ featureType:'road.highway.controlled_access', elementType:'geometry.fill', stylers:[{ color:'#dcdcdc' }] },
+
+{ featureType:'transit', stylers:[{ visibility:'off' }] },
+{ featureType:'transit.line', elementType:'geometry', stylers:[{ visibility:'on' }, { color:'#4d5359' }] },
+
+{ featureType:'water', elementType:'geometry', stylers:[{ color:'#3f6585' }] },
+{ featureType:'water', elementType:'labels.text.fill', stylers:[{ color:'#a9c4dc' }] }
+];
+
+// GTA's waypoint / GPS purple
+var GPS = '#b25ce6';
+
+var map, player, waypoint, route, directions, geocoder;
+
+function getKey(){
+var fromUrl = new URLSearchParams(location.search).get('key');
+if(fromUrl) return fromUrl;
+try{ return localStorage.getItem('gtaMapKey'); }catch(e){ return null; }
+}
+
+function loadGoogle(key){
+var s = document.createElement('script');
+s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&callback=initMap';
+s.async = true;
+document.head.appendChild(s);
+}
+
+function initMap(){
+var start = { lat:34.0522, lng:-118.2437 }; // real-life Los Santos
+
+map = new google.maps.Map(document.getElementById('map'), {
+center:start,
+zoom:14,
+styles:GTA_STYLE,
+backgroundColor:'#2b2f33',
+disableDefaultUI:true,
+zoomControl:true,
+clickableIcons:false,
+gestureHandling:'greedy'
+});
+
+geocoder = new google.maps.Geocoder();
+directions = new google.maps.DirectionsService();
+
+// White arrow like the player blip on the radar
+player = new google.maps.Marker({
+map:map,
+position:start,
+zIndex:10,
+icon:{
+path:google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+scale:7,
+fillColor:'#ffffff',
+fillOpacity:1,
+strokeColor:'#000000',
+strokeWeight:2
+}
+});
+
+if(navigator.geolocation){
+navigator.geolocation.getCurrentPosition(function(pos){
+var here = { lat:pos.coords.latitude, lng:pos.coords.longitude };
+player.setPosition(here);
+map.setCenter(here);
+updateStreet(here);
+}, function(){
+updateStreet(start);
+});
+}else{
+updateStreet(start);
+}
+
+map.addListener('click', function(e){ setWaypoint(e.latLng); });
+map.addListener('rightclick', clearWaypoint);
+}
+
+function setWaypoint(latLng){
+clearWaypoint();
+
+waypoint = new google.maps.Marker({
+map:map,
+position:latLng,
+zIndex:9,
+icon:{
+path:'M 0,-14 C -8,-14 -12,-8 -12,-3 C -12,5 0,14 0,14 C 0,14 12,5 12,-3 C 12,-8 8,-14 0,-14 Z',
+fillColor:GPS,
+fillOpacity:1,
+strokeColor:'#000000',
+strokeWeight:1.5,
+scale:1.3
+}
+});
+
+directions.route({
+origin:player.getPosition(),
+destination:latLng,
+travelMode:google.maps.TravelMode.DRIVING
+}, function(result, status){
+var path = status === 'OK'
+? result.routes[0].overview_path
+: [player.getPosition(), latLng]; // Directions API not enabled: draw a straight line
+route = new google.maps.Polyline({
+map:map,
+path:path,
+strokeColor:GPS,
+strokeOpacity:1,
+strokeWeight:6,
+zIndex:5
+});
+});
+
+addCash(Math.floor(Math.random() * 900) + 100);
+}
+
+function clearWaypoint(){
+if(waypoint){ waypoint.setMap(null); waypoint = null; }
+if(route){ route.setMap(null); route = null; }
+}
+
+// Bottom-left street / district readout
+function updateStreet(latLng){
+geocoder.geocode({ location:latLng }, function(results, status){
+var el = document.getElementById('street');
+if(status !== 'OK' || !results[0]){
+el.innerHTML = 'San Andreas<small>&nbsp;</small>';
+return;
+}
+var street = '', area = '';
+results[0].address_components.forEach(function(c){
+if(c.types.indexOf('route') > -1) street = c.long_name;
+if(!area && (c.types.indexOf('neighborhood') > -1 || c.types.indexOf('locality') > -1)) area = c.long_name;
+});
+el.textContent = street || area || 'San Andreas';
+var small = document.createElement('small');
+small.textContent = street ? area : ' ';
+el.appendChild(small);
+});
+}
+
+var cash = 0;
+function addCash(n){
+cash += n;
+document.getElementById('cash').textContent = '$' + cash.toLocaleString();
+var stars = Math.min(5, Math.floor(cash / 2000));
+document.querySelectorAll('#stars span').forEach(function(s, i){
+s.classList.toggle('on', i < stars);
+});
+}
+
+var key = getKey();
+if(key){
+loadGoogle(key);
+}else{
+document.getElementById('keybox').style.display = 'flex';
+}
+
+document.getElementById('keyform').addEventListener('submit', function(e){
+e.preventDefault();
+var k = document.getElementById('keyinput').value.trim();
+if(!k) return;
+try{ localStorage.setItem('gtaMapKey', k); }catch(err){}
+document.getElementById('keybox').style.display = 'none';
+loadGoogle(k);
+});
+</script>
+
+</body>
+</html>
