@@ -18,6 +18,22 @@ support, so there are two options:
 2. Serve this folder: `python3 -m http.server 8000`
 3. Open `http://localhost:8000/index.html?key=YOUR_API_KEY`
 
+### Install it as an app on your homescreen
+
+The page is an installable web app. It has to be served over https, for example with GitHub Pages:
+
+1. On GitHub, open the repo's **Settings → Pages**, choose **Deploy from a branch**, pick the
+   branch with this folder and `/ (root)`, and save. (On a free plan the repo must be public.)
+2. After a minute it's live at `https://<your-username>.github.io/<repo>/gta-map-theme/`.
+3. In the Google Cloud console, restrict your API key to that address (HTTP referrers).
+4. Open the address on your device and enter your API key once. It's saved on that device.
+5. Add it to your homescreen:
+   - **iPhone/iPad (Safari):** Share → **Add to Home Screen**
+   - **Android (Chrome):** ⋮ menu → **Add to Home screen** / **Install app**
+   - **Windows/Mac (Chrome or Edge):** the install icon at the right end of the address bar
+
+It opens full screen with its own icon, like a normal app.
+
 You can also paste `pause-map-style.json` into any project that takes Google Maps
 JSON styles (`new google.maps.Map(el, { styles: [...] })`, or sites such as Snazzy Maps).
 JSON styles don't apply to maps created with a `mapId`.

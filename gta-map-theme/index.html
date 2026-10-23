@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f1d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GTA Map">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>GTA Map Theme</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet">
@@ -79,7 +87,14 @@
     position: absolute; inset: 0; display: grid; place-items: center; z-index: 10;
     background: #1b1f1d; color: #eee; font: 16px/1.5 var(--ui-font); padding: 16px; text-align: center;
   }
-  .no-key code { background: #000; padding: 2px 6px; }
+  .no-key form { display: grid; gap: 10px; max-width: 360px; width: 100%; }
+  .no-key h1 { font: 700 34px var(--hud-font); margin: 0 0 4px; }
+  .no-key input, .no-key button {
+    font: 16px var(--ui-font); padding: 10px 12px; border: 0; border-radius: 0;
+  }
+  .no-key input { background: #000; color: #fff; border: 2px solid #444; }
+  .no-key button { background: #f0f0f0; color: #000; text-transform: uppercase; cursor: pointer; }
+  .no-key small { color: #aaa; font-size: 13px; }
 
   @media (max-width: 640px) {
     .radar-wrap { width: 170px; left: 12px; bottom: 12px; }
@@ -121,8 +136,14 @@
 <div class="hint">Right-click to set a waypoint &nbsp;·&nbsp; Press W to raise your wanted level</div>
 
 <script>
-  // Pass your key as ?key=YOUR_API_KEY, or paste it here.
-  const API_KEY = new URLSearchParams(location.search).get("key") || "";
+  // The key comes from ?key=..., or from the setup screen (saved on this device).
+  function savedKey() { try { return localStorage.getItem("gtaMapKey") || ""; } catch { return ""; } }
+  function saveKey(k) { try { localStorage.setItem("gtaMapKey", k); } catch {} }
+  const urlKey = new URLSearchParams(location.search).get("key");
+  if (urlKey) saveKey(urlKey);
+  const API_KEY = urlKey || savedKey();
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   const START = { lat: 34.0522, lng: -118.2437 }; // Los Angeles = Los Santos
 
   let wanted = 0;
@@ -201,10 +222,24 @@
 
   if (!API_KEY) {
     document.body.insertAdjacentHTML("beforeend",
-      `<div class="no-key"><div>Add a Google Maps API key to the URL:<br>
-       <code>index.html?key=YOUR_API_KEY</code></div></div>`);
+      `<div class="no-key"><form id="key-form">
+         <h1>GTA Map</h1>
+         <input id="key-input" placeholder="Google Maps API key" autocomplete="off" required>
+         <button type="submit">Start</button>
+         <small>Saved on this device only. Get a key in the Google Cloud console.</small>
+       </form></div>`);
+    document.getElementById("key-form").addEventListener("submit", e => {
+      e.preventDefault();
+      saveKey(document.getElementById("key-input").value.trim());
+      location.reload();
+    });
   } else {
     window.initMap = initMap;
+    // Google calls this when the key is rejected: forget it and show the setup screen again.
+    window.gm_authFailure = () => {
+      saveKey("");
+      if (!urlKey) location.reload();
+    };
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&callback=initMap`;
     s.async = true;
